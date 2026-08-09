@@ -1,0 +1,19 @@
+# Node
+node_modules/
+dist/
+*.log
+
+# Go
+backend/portfolio.db
+
+# Env / secrets
+.env
+.env.local
+*.env
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# OS
+.DS_Store
+Thumbs.db
