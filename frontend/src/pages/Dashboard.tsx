@@ -8,6 +8,7 @@ import ModalOperacion from '../components/ModalOperacion'
 import Historial from '../components/Historial'
 import RetornoReal from '../components/RetornoReal'
 import Alertas from '../components/Alertas'
+import ImportarCSV from '../components/ImportarCSV'
 
 type Vista = 'cartera' | 'retorno-real' | 'alertas' | 'historial'
 
@@ -17,6 +18,7 @@ export default function Dashboard() {
   const [error, setError] = useState('')
   const [vista, setVista] = useState<Vista>('cartera')
   const [modalAbierto, setModalAbierto] = useState<'compra' | 'venta' | null>(null)
+  const [importarAbierto, setImportarAbierto] = useState(false)
   const { tema, toggleTema } = useTheme()
 
   const cargarCartera = useCallback(async () => {
@@ -64,6 +66,12 @@ export default function Dashboard() {
             className="bg-red-700 hover:bg-red-600 text-white px-3 sm:px-4 py-2 rounded-lg text-sm font-medium transition-colors"
           >
             − Venta
+          </button>
+          <button
+            onClick={() => setImportarAbierto(true)}
+            className="bg-gray-200 hover:bg-gray-300 text-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700 dark:text-gray-200 px-3 sm:px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+          >
+            📂 Importar CSV
           </button>
           <button
             onClick={cargarCartera}
@@ -183,6 +191,14 @@ export default function Dashboard() {
             setModalAbierto(null)
             cargarCartera()
           }}
+        />
+      )}
+
+      {/* Modal importar CSV */}
+      {importarAbierto && (
+        <ImportarCSV
+          onClose={() => setImportarAbierto(false)}
+          onSuccess={cargarCartera}
         />
       )}
     </div>

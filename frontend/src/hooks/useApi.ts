@@ -1,4 +1,4 @@
-import { Alerta, AlertaRequest, CompraRequest, Cotizacion, Operacion, RendimientoReal, ResumenCartera, VentaRequest } from '../types'
+import { Alerta, AlertaRequest, CompraRequest, Cotizacion, ImportarCSVResultado, Operacion, RendimientoReal, ResumenCartera, VentaRequest } from '../types'
 
 const BASE = 'http://localhost:8080/api'
 
@@ -54,4 +54,13 @@ export const api = {
     request<{ message: string }>(`/alertas/${id}`, {
       method: 'DELETE',
     }),
+
+  importarCSV: async (file: File): Promise<ImportarCSVResultado> => {
+    const formData = new FormData()
+    formData.append('file', file)
+    const res = await fetch(`${BASE}/importar-csv`, { method: 'POST', body: formData })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || 'Error desconocido')
+    return data as ImportarCSVResultado
+  },
 }

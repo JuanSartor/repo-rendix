@@ -141,11 +141,11 @@ rendix/
 - [ ] Eventos estacionales: rally navideño, sell in may, etc.
 
 ### 🔲 Fase 5 — Multi-usuario (SaaS)
-- [ ] Migrar de SQLite a PostgreSQL
+- [x] ~~Migrar de SQLite a PostgreSQL~~ — ya está en Postgres/Supabase desde Fase 1
 - [ ] Auth con Supabase (registro, login, JWT)
 - [ ] Cada usuario ve solo su cartera
 - [ ] Planes Free / Pro / Premium
-- [ ] Importar CSV desde Cocos o Bull Market
+- [x] Importar CSV — adelantado a antes de Fase 5 (formato propio Rendix, no un parser específico de Cocos/Bull Market ya que no exponen ese formato públicamente). También se adelantó la fecha de operación editable, necesaria para cargar historial real.
 
 ### 🔲 Fase 6 — Gráficos y UI avanzada
 - [ ] Gráfico evolución de cartera en el tiempo (Recharts)

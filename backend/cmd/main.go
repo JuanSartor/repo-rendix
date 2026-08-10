@@ -51,6 +51,7 @@ func main() {
 		api.GET("/alertas",          handlers.GetAlertas)
 		api.POST("/alertas",         handlers.PostAlertas)
 		api.DELETE("/alertas/:id",   handlers.DeleteAlerta)
+		api.POST("/importar-csv",    handlers.PostImportarCSV)
 	}
 
 	iniciarJobsAlertas()
