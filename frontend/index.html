@@ -4,6 +4,14 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Rendix — Portfolio Tracker</title>
+    <script>
+      // Aplica el tema antes de que React monte, para evitar un flash del tema incorrecto.
+      (function () {
+        var guardado = localStorage.getItem('rendix-theme');
+        var oscuro = guardado === 'dark' || (!guardado && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        if (oscuro) document.documentElement.classList.add('dark');
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

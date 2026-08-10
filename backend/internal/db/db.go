@@ -202,6 +202,37 @@ func RegistrarVenta(req models.VentaRequest) error {
 	return tx.Commit()
 }
 
+// ObtenerComprasPorTicker devuelve todas las operaciones de COMPRA de un ticker,
+// ordenadas ascendente por fecha. Se usa para calcular el retorno real ajustando
+// la inflación por cada tramo de compra (DCA) en vez de una sola fecha de apertura.
+func ObtenerComprasPorTicker(ticker string) ([]models.Operacion, error) {
+	rows, err := DB.Query(`
+		SELECT id, tipo, ticker, cantidad, precio_ars, total_ars, es_cedear, broker, notas, fecha_opera, comision_ars
+		FROM operaciones
+		WHERE ticker = $1 AND tipo = 'COMPRA'
+		ORDER BY fecha_opera ASC
+	`, ticker)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var ops []models.Operacion
+	for rows.Next() {
+		var op models.Operacion
+		err := rows.Scan(
+			&op.ID, &op.Tipo, &op.Ticker, &op.Cantidad,
+			&op.PrecioARS, &op.TotalARS, &op.EsCedear,
+			&op.Broker, &op.Notas, &op.FechaOpera, &op.ComisionARS,
+		)
+		if err != nil {
+			return nil, err
+		}
+		ops = append(ops, op)
+	}
+	return ops, nil
+}
+
 func ObtenerHistorial(ticker string, limit int) ([]models.Operacion, error) {
 	query := `SELECT id, tipo, ticker, cantidad, precio_ars, total_ars, es_cedear, broker, notas, fecha_opera, comision_ars
 		FROM operaciones`

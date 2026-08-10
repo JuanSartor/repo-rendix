@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sync"
 	"time"
 )
 
@@ -27,6 +28,27 @@ var CedearRatios = map[string]float64{
 
 var httpClient = &http.Client{Timeout: 8 * time.Second}
 
+// ─── Cache en memoria de precios y CCL ────────────────────────────────────────
+// Evita golpear Yahoo/criptoya en cada request de /api/cartera (que ya de por sí
+// paraleliza el fetch por posición) y acorta la ventana en la que un fetch lento
+// bloquea el request completo.
+
+const ttlCachePrecio = 30 * time.Second
+
+type precioCacheEntry struct {
+	precio    float64
+	err       error
+	timestamp time.Time
+}
+
+var (
+	precioCacheUSD = map[string]precioCacheEntry{}
+	precioCacheMu  sync.Mutex
+
+	cclCache   precioCacheEntry
+	cclCacheMu sync.Mutex
+)
+
 // TickerLocalAlias mapea el ticker "coloquial" al símbolo real que usa Yahoo
 // Finance para acciones locales en BYMA, cuando difieren (ej: YPF cotiza como YPFD.BA).
 var TickerLocalAlias = map[string]string{
@@ -48,7 +70,27 @@ type criptoyaResp map[string]struct {
 	Bid float64 `json:"bid"`
 }
 
+// ObtenerDolarCCL devuelve el CCL, cacheado por ttlCachePrecio para no golpear
+// criptoya.com en cada llamada dentro de la misma ventana de tiempo.
 func ObtenerDolarCCL() (float64, error) {
+	cclCacheMu.Lock()
+	if cclCache.timestamp.IsZero() == false && time.Since(cclCache.timestamp) < ttlCachePrecio {
+		precio, err := cclCache.precio, cclCache.err
+		cclCacheMu.Unlock()
+		return precio, err
+	}
+	cclCacheMu.Unlock()
+
+	precio, err := obtenerDolarCCLSinCache()
+
+	cclCacheMu.Lock()
+	cclCache = precioCacheEntry{precio: precio, err: err, timestamp: time.Now()}
+	cclCacheMu.Unlock()
+
+	return precio, err
+}
+
+func obtenerDolarCCLSinCache() (float64, error) {
 	resp, err := httpClient.Get("https://criptoya.com/api/dolar")
 	if err != nil {
 		return 0, fmt.Errorf("error consultando CCL: %w", err)
@@ -89,7 +131,28 @@ type yahooResp struct {
 	} `json:"chart"`
 }
 
+// ObtenerPrecioUSD devuelve el precio de un ticker en USD, cacheado por ttlCachePrecio.
+// Es la función que más se llama en paralelo (una por posición), así que el cache
+// es lo que evita golpear Yahoo N veces cuando varias posiciones comparten ticker
+// o cuando el frontend refresca cada 60s.
 func ObtenerPrecioUSD(ticker string) (float64, error) {
+	precioCacheMu.Lock()
+	if entry, ok := precioCacheUSD[ticker]; ok && time.Since(entry.timestamp) < ttlCachePrecio {
+		precioCacheMu.Unlock()
+		return entry.precio, entry.err
+	}
+	precioCacheMu.Unlock()
+
+	precio, err := obtenerPrecioUSDSinCache(ticker)
+
+	precioCacheMu.Lock()
+	precioCacheUSD[ticker] = precioCacheEntry{precio: precio, err: err, timestamp: time.Now()}
+	precioCacheMu.Unlock()
+
+	return precio, err
+}
+
+func obtenerPrecioUSDSinCache(ticker string) (float64, error) {
 	url := fmt.Sprintf(
 		"https://query1.finance.yahoo.com/v8/finance/chart/%s?interval=1d&range=1d",
 		ticker,

@@ -18,11 +18,15 @@ type Posicion struct {
 	CCLApertura *float64 `json:"ccl_apertura,omitempty" db:"ccl_apertura"`
 
 	// Campos calculados (no persistidos)
-	PrecioActualARS float64 `json:"precio_actual_ars,omitempty"`
-	PrecioActualUSD float64 `json:"precio_actual_usd,omitempty"`
-	PnlARS          float64 `json:"pnl_ars,omitempty"`
-	PnlPct          float64 `json:"pnl_pct,omitempty"`
-	ValorTotalARS   float64 `json:"valor_total_ars,omitempty"`
+	// PrecioDisponible es false cuando falló el fetch a Yahoo Finance: en ese caso
+	// los campos de abajo quedan en cero y NO representan una pérdida real, así que
+	// el frontend debe mostrar "sin cotización" en vez de un P&L falso.
+	PrecioDisponible bool    `json:"precio_disponible"`
+	PrecioActualARS  float64 `json:"precio_actual_ars,omitempty"`
+	PrecioActualUSD  float64 `json:"precio_actual_usd,omitempty"`
+	PnlARS           float64 `json:"pnl_ars,omitempty"`
+	PnlPct           float64 `json:"pnl_pct,omitempty"`
+	ValorTotalARS    float64 `json:"valor_total_ars,omitempty"`
 }
 
 // Operacion representa una compra o venta registrada
@@ -42,13 +46,16 @@ type Operacion struct {
 
 // ResumenCartera es el payload completo que devuelve GET /api/cartera
 type ResumenCartera struct {
-	Posiciones      []Posicion `json:"posiciones"`
-	TotalInvertido  float64    `json:"total_invertido_ars"`
-	TotalActual     float64    `json:"total_actual_ars"`
-	TotalPnlARS     float64    `json:"total_pnl_ars"`
-	TotalPnlPct     float64    `json:"total_pnl_pct"`
-	TotalUSD        float64    `json:"total_usd"`
-	DolarCCL        float64    `json:"dolar_ccl"`
+	Posiciones     []Posicion `json:"posiciones"`
+	TotalInvertido float64    `json:"total_invertido_ars"`
+	TotalActual    float64    `json:"total_actual_ars"`
+	TotalPnlARS    float64    `json:"total_pnl_ars"`
+	TotalPnlPct    float64    `json:"total_pnl_pct"`
+	TotalUSD       float64    `json:"total_usd"`
+	DolarCCL       float64    `json:"dolar_ccl"`
+	// PosicionesSinCotizar lista los tickers cuyo precio no se pudo obtener en este
+	// request; sus montos NO están incluidos en los totales de arriba.
+	PosicionesSinCotizar []string `json:"posiciones_sin_cotizar,omitempty"`
 }
 
 // Request bodies
@@ -117,4 +124,8 @@ type RendimientoReal struct {
 
 	// Resumen en lenguaje natural: "Ganaste X% nominal pero Y% real"
 	Resumen string `json:"resumen"`
+
+	// PosicionesSinCotizar lista los tickers excluidos del cálculo por no tener
+	// precio actual disponible en este request.
+	PosicionesSinCotizar []string `json:"posiciones_sin_cotizar,omitempty"`
 }
