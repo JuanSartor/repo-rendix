@@ -70,6 +70,12 @@ func crearTablas() error {
 		disparada_en    TIMESTAMPTZ
 	);
 
+	CREATE TABLE IF NOT EXISTS waitlist (
+		id         SERIAL PRIMARY KEY,
+		email      TEXT NOT NULL UNIQUE,
+		creado_en  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+	);
+
 	-- Migraciones idempotentes para bases creadas antes de estas columnas.
 	ALTER TABLE posiciones ADD COLUMN IF NOT EXISTS ccl_apertura DOUBLE PRECISION;
 	ALTER TABLE operaciones ADD COLUMN IF NOT EXISTS comision_ars DOUBLE PRECISION NOT NULL DEFAULT 0;
@@ -379,6 +385,22 @@ func EliminarAlerta(id int) error {
 	}
 	if filas == 0 {
 		return fmt.Errorf("no existe alerta con id %d", id)
+	}
+	return nil
+}
+
+// ─── Waitlist ─────────────────────────────────────────────────────────────────
+
+// AgregarAWaitlist inscribe un email. Si ya estaba anotado, no falla (ON CONFLICT
+// DO NOTHING) — para el usuario del formulario, reenviar el mismo email dos veces
+// no debería verse como un error.
+func AgregarAWaitlist(email string) error {
+	_, err := DB.Exec(
+		`INSERT INTO waitlist (email) VALUES ($1) ON CONFLICT (email) DO NOTHING`,
+		email,
+	)
+	if err != nil {
+		return fmt.Errorf("error guardando email en waitlist: %w", err)
 	}
 	return nil
 }

@@ -438,3 +438,17 @@ func PostImportarCSV(c *gin.Context) {
 		"errores":    errores,
 	})
 }
+
+// POST /api/waitlist (público, para la landing page)
+func PostWaitlist(c *gin.Context) {
+	var req models.WaitlistRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "email inválido"})
+		return
+	}
+	if err := db.AgregarAWaitlist(strings.ToLower(strings.TrimSpace(req.Email))); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"message": "¡Listo! Te avisamos apenas abramos la beta."})
+}
