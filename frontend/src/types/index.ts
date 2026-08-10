@@ -46,6 +46,7 @@ export interface CompraRequest {
   es_cedear: boolean
   broker: string
   notas?: string
+  fecha_opera?: string
 }
 
 export interface VentaRequest {
@@ -55,6 +56,12 @@ export interface VentaRequest {
   comision_ars?: number
   broker: string
   notas?: string
+  fecha_opera?: string
+}
+
+export interface ImportarCSVResultado {
+  importadas: number
+  errores?: string[]
 }
 
 export interface RendimientoPosicion {

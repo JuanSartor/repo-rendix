@@ -9,6 +9,10 @@ interface Props {
 
 const BROKERS = ['Cocos', 'Bull Market']
 
+function hoyISO() {
+  return new Date().toISOString().slice(0, 10)
+}
+
 export default function ModalOperacion({ tipo, onClose, onSuccess }: Props) {
   const [ticker, setTicker] = useState('')
   const [cantidad, setCantidad] = useState('')
@@ -17,6 +21,7 @@ export default function ModalOperacion({ tipo, onClose, onSuccess }: Props) {
   const [esCedear, setEsCedear] = useState(true)
   const [broker, setBroker] = useState('Cocos')
   const [notas, setNotas] = useState('')
+  const [fecha, setFecha] = useState(hoyISO)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -42,6 +47,7 @@ export default function ModalOperacion({ tipo, onClose, onSuccess }: Props) {
           es_cedear: esCedear,
           broker,
           notas,
+          fecha_opera: fecha,
         })
       } else {
         await api.postVenta({
@@ -51,6 +57,7 @@ export default function ModalOperacion({ tipo, onClose, onSuccess }: Props) {
           comision_ars: comision,
           broker,
           notas,
+          fecha_opera: fecha,
         })
       }
       onSuccess()
@@ -139,6 +146,16 @@ export default function ModalOperacion({ tipo, onClose, onSuccess }: Props) {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
+              <label className={labelClass}>Fecha</label>
+              <input
+                type="date"
+                value={fecha}
+                onChange={(e) => setFecha(e.target.value)}
+                max={hoyISO()}
+                className={inputClass}
+              />
+            </div>
+            <div>
               <label className={labelClass}>Broker</label>
               <select
                 value={broker}
@@ -150,20 +167,25 @@ export default function ModalOperacion({ tipo, onClose, onSuccess }: Props) {
                 ))}
               </select>
             </div>
-            {esCompra && (
-              <div className="flex items-end pb-2">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={esCedear}
-                    onChange={(e) => setEsCedear(e.target.checked)}
-                    className="w-4 h-4 accent-blue-500"
-                  />
-                  <span className="text-sm text-gray-600 dark:text-gray-300">Es CEDEAR</span>
-                </label>
-              </div>
-            )}
           </div>
+
+          {esCompra && fecha !== hoyISO() && (
+            <p className="text-xs text-gray-400 dark:text-gray-500 -mt-2">
+              Fecha retroactiva: el retorno real en USD para esta posición no va a estar disponible (no tenemos el dólar CCL histórico de esa fecha). El retorno real en ARS sí se calcula bien.
+            </p>
+          )}
+
+          {esCompra && (
+            <label className="flex items-center gap-2 cursor-pointer w-fit">
+              <input
+                type="checkbox"
+                checked={esCedear}
+                onChange={(e) => setEsCedear(e.target.checked)}
+                className="w-4 h-4 accent-blue-500"
+              />
+              <span className="text-sm text-gray-600 dark:text-gray-300">Es CEDEAR</span>
+            </label>
+          )}
 
           <div>
             <label className={labelClass}>Notas (opcional)</label>

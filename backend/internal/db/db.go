@@ -112,8 +112,10 @@ func ObtenerPosiciones() ([]models.Posicion, error) {
 
 // RegistrarCompra registra una compra con precio promedio ponderado (la comisión se
 // prorratea en el costo unitario, así que encarece el precio promedio de la posición).
-// cclActual se guarda como ccl_apertura solo si la posición es nueva; se usa más
-// adelante para calcular el retorno real en USD.
+// cclActual se guarda como ccl_apertura solo si la posición es nueva Y la compra no
+// es retroactiva (ver parsearFechaOpera): no tenemos forma de saber el CCL real de
+// una fecha pasada, y guardar el de HOY en una compra vieja distorsionaría el
+// retorno real en USD más que directamente no tener el dato.
 func RegistrarCompra(req models.CompraRequest, cclActual float64) error {
 	tx, err := DB.Begin()
 	if err != nil {
@@ -122,7 +124,11 @@ func RegistrarCompra(req models.CompraRequest, cclActual float64) error {
 	defer tx.Rollback()
 
 	ticker := req.Ticker
-	now := time.Now()
+	ahora := time.Now()
+	fecha, retroactiva, err := parsearFechaOpera(req.FechaOpera, ahora)
+	if err != nil {
+		return err
+	}
 	precioEfectivo := req.PrecioARS + req.ComisionARS/req.Cantidad
 
 	// Buscar posición existente
@@ -134,11 +140,15 @@ func RegistrarCompra(req models.CompraRequest, cclActual float64) error {
 
 	if err == sql.ErrNoRows {
 		// Nueva posición
+		var cclParaGuardar interface{}
+		if !retroactiva {
+			cclParaGuardar = cclActual
+		}
 		_, err = tx.Exec(`
 			INSERT INTO posiciones (ticker, cantidad, precio_prom_ars, es_cedear, broker, creado_en, actualizado_en, ccl_apertura)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
 			ticker, req.Cantidad, precioEfectivo,
-			req.EsCedear, req.Broker, now, now, cclActual,
+			req.EsCedear, req.Broker, fecha, ahora, cclParaGuardar,
 		)
 	} else if err == nil {
 		// Actualizar con precio promedio ponderado (incluye comisión de esta compra)
@@ -147,7 +157,7 @@ func RegistrarCompra(req models.CompraRequest, cclActual float64) error {
 		_, err = tx.Exec(`
 			UPDATE posiciones SET cantidad=$1, precio_prom_ars=$2, broker=$3, actualizado_en=$4
 			WHERE id=$5`,
-			nuevaCant, nuevoProm, req.Broker, now, id,
+			nuevaCant, nuevoProm, req.Broker, ahora, id,
 		)
 	}
 	if err != nil {
@@ -160,7 +170,7 @@ func RegistrarCompra(req models.CompraRequest, cclActual float64) error {
 		VALUES ('COMPRA', $1, $2, $3, $4, $5, $6, $7, $8, $9)`,
 		ticker, req.Cantidad, req.PrecioARS,
 		req.Cantidad*req.PrecioARS+req.ComisionARS,
-		req.EsCedear, req.Broker, req.Notas, now, req.ComisionARS,
+		req.EsCedear, req.Broker, req.Notas, fecha, req.ComisionARS,
 	)
 	if err != nil {
 		return fmt.Errorf("error registrando operación: %w", err)
@@ -169,12 +179,34 @@ func RegistrarCompra(req models.CompraRequest, cclActual float64) error {
 	return tx.Commit()
 }
 
+// parsearFechaOpera interpreta el campo opcional FechaOpera ("YYYY-MM-DD") de un
+// request. Si viene vacío, devuelve ahora y retroactiva=false. Si viene una fecha
+// que no es hoy, retroactiva=true (se usa para decidir si tiene sentido guardar el
+// CCL/precio "actual" del momento del request, o si sería un dato falso).
+func parsearFechaOpera(fechaOpera string, ahora time.Time) (fecha time.Time, retroactiva bool, err error) {
+	if fechaOpera == "" {
+		return ahora, false, nil
+	}
+	fecha, err = time.Parse("2006-01-02", fechaOpera)
+	if err != nil {
+		return time.Time{}, false, fmt.Errorf("fecha_opera inválida (usar YYYY-MM-DD): %w", err)
+	}
+	retroactiva = fecha.Format("2006-01-02") != ahora.Format("2006-01-02")
+	return fecha, retroactiva, nil
+}
+
 func RegistrarVenta(req models.VentaRequest) error {
 	tx, err := DB.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
+
+	ahora := time.Now()
+	fecha, _, err := parsearFechaOpera(req.FechaOpera, ahora)
+	if err != nil {
+		return err
+	}
 
 	var id int
 	var cantActual float64
@@ -192,7 +224,7 @@ func RegistrarVenta(req models.VentaRequest) error {
 	nuevaCant := cantActual - req.Cantidad
 	_, err = tx.Exec(
 		`UPDATE posiciones SET cantidad=$1, actualizado_en=$2 WHERE id=$3`,
-		nuevaCant, time.Now(), id,
+		nuevaCant, ahora, id,
 	)
 	if err != nil {
 		return err
@@ -204,7 +236,7 @@ func RegistrarVenta(req models.VentaRequest) error {
 		VALUES ('VENTA', $1, $2, $3, $4, FALSE, $5, $6, $7, $8)`,
 		req.Ticker, req.Cantidad, req.PrecioARS,
 		req.Cantidad*req.PrecioARS-req.ComisionARS,
-		req.Broker, req.Notas, time.Now(), req.ComisionARS,
+		req.Broker, req.Notas, fecha, req.ComisionARS,
 	)
 	if err != nil {
 		return err

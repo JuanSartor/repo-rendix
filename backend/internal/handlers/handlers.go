@@ -1,8 +1,10 @@
 package handlers
 
 import (
+	"encoding/csv"
 	"fmt"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -315,4 +317,124 @@ func DeleteAlerta(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "Alerta eliminada"})
+}
+
+// POST /api/importar-csv
+// Carga masiva de operaciones desde un CSV (multipart, campo "file"). Columnas
+// requeridas: tipo,ticker,cantidad,precio_ars,broker. Opcionales: comision_ars,
+// es_cedear,fecha (YYYY-MM-DD),notas. El orden de columnas no importa (se leen
+// por nombre de header), y las filas se procesan ordenadas por fecha para que
+// una VENTA no falle por ejecutarse "antes" que su COMPRA correspondiente si el
+// archivo no vino ya ordenado cronológicamente.
+func PostImportarCSV(c *gin.Context) {
+	file, err := c.FormFile("file")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "falta el archivo CSV (campo 'file')"})
+		return
+	}
+	f, err := file.Open()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	defer f.Close()
+
+	reader := csv.NewReader(f)
+	reader.TrimLeadingSpace = true
+	filas, err := reader.ReadAll()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "error leyendo CSV: " + err.Error()})
+		return
+	}
+	if len(filas) < 2 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "el CSV no tiene filas de datos"})
+		return
+	}
+
+	header := filas[0]
+	col := map[string]int{}
+	for i, h := range header {
+		col[strings.ToLower(strings.TrimSpace(h))] = i
+	}
+	for _, req := range []string{"tipo", "ticker", "cantidad", "precio_ars", "broker"} {
+		if _, ok := col[req]; !ok {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("falta la columna '%s' en el CSV", req)})
+			return
+		}
+	}
+
+	get := func(fila []string, nombre string) string {
+		idx, ok := col[nombre]
+		if !ok || idx >= len(fila) {
+			return ""
+		}
+		return strings.TrimSpace(fila[idx])
+	}
+
+	datos := filas[1:]
+	sort.SliceStable(datos, func(i, j int) bool {
+		// Fechas vacías (= "hoy") ordenan al final; YYYY-MM-DD ordena bien como string.
+		fi, fj := get(datos[i], "fecha"), get(datos[j], "fecha")
+		if fi == "" {
+			return false
+		}
+		if fj == "" {
+			return true
+		}
+		return fi < fj
+	})
+
+	ccl, _ := services.ObtenerDolarCCL() // si falla queda en 0; solo afecta ccl_apertura de compras "de hoy"
+
+	var importadas int
+	var errores []string
+
+	for i, fila := range datos {
+		numFila := i + 2 // +1 por el header, +1 porque las filas se cuentan desde 1
+		tipo := strings.ToUpper(get(fila, "tipo"))
+		ticker := strings.ToUpper(get(fila, "ticker"))
+		cantidad, errC := strconv.ParseFloat(get(fila, "cantidad"), 64)
+		precio, errP := strconv.ParseFloat(get(fila, "precio_ars"), 64)
+		comision := 0.0
+		if s := get(fila, "comision_ars"); s != "" {
+			comision, _ = strconv.ParseFloat(s, 64)
+		}
+		esCedear := strings.EqualFold(get(fila, "es_cedear"), "true") || get(fila, "es_cedear") == "1"
+		broker := get(fila, "broker")
+		fecha := get(fila, "fecha")
+		notas := get(fila, "notas")
+
+		if errC != nil || errP != nil || cantidad <= 0 || precio <= 0 || ticker == "" || broker == "" {
+			errores = append(errores, fmt.Sprintf("fila %d: datos inválidos o incompletos", numFila))
+			continue
+		}
+
+		var errOp error
+		switch tipo {
+		case "COMPRA":
+			errOp = db.RegistrarCompra(models.CompraRequest{
+				Ticker: ticker, Cantidad: cantidad, PrecioARS: precio,
+				ComisionARS: comision, EsCedear: esCedear, Broker: broker,
+				Notas: notas, FechaOpera: fecha,
+			}, ccl)
+		case "VENTA":
+			errOp = db.RegistrarVenta(models.VentaRequest{
+				Ticker: ticker, Cantidad: cantidad, PrecioARS: precio,
+				ComisionARS: comision, Broker: broker, Notas: notas, FechaOpera: fecha,
+			})
+		default:
+			errOp = fmt.Errorf("tipo '%s' inválido (debe ser COMPRA o VENTA)", tipo)
+		}
+
+		if errOp != nil {
+			errores = append(errores, fmt.Sprintf("fila %d (%s): %s", numFila, ticker, errOp.Error()))
+			continue
+		}
+		importadas++
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"importadas": importadas,
+		"errores":    errores,
+	})
 }

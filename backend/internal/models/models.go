@@ -67,6 +67,9 @@ type CompraRequest struct {
 	EsCedear    bool    `json:"es_cedear"`
 	Broker      string  `json:"broker" binding:"required"`
 	Notas       string  `json:"notas"`
+	// FechaOpera es opcional, formato "2006-01-02". Vacío = ahora. Se usa para
+	// cargar historial real (DCA pasado); ver nota sobre ccl_apertura en db.go.
+	FechaOpera string `json:"fecha_opera"`
 }
 
 type VentaRequest struct {
@@ -76,6 +79,7 @@ type VentaRequest struct {
 	ComisionARS float64 `json:"comision_ars"`
 	Broker      string  `json:"broker" binding:"required"`
 	Notas       string  `json:"notas"`
+	FechaOpera  string  `json:"fecha_opera"`
 }
 
 // CotizacionResponse es lo que devuelve GET /api/cotizacion/:ticker
