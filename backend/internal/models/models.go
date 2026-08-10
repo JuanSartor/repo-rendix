@@ -12,6 +12,10 @@ type Posicion struct {
 	Broker        string    `json:"broker" db:"broker"`
 	CreadoEn      time.Time `json:"creado_en" db:"creado_en"`
 	ActualizadoEn time.Time `json:"actualizado_en" db:"actualizado_en"`
+	// CCLApertura es el dólar CCL vigente cuando se abrió la posición (primera compra).
+	// Nil en posiciones creadas antes de que este campo existiera: sin este dato no se
+	// puede calcular el retorno real en USD, así que esos casos se omiten del cálculo.
+	CCLApertura *float64 `json:"ccl_apertura,omitempty" db:"ccl_apertura"`
 
 	// Campos calculados (no persistidos)
 	PrecioActualARS float64 `json:"precio_actual_ars,omitempty"`
@@ -28,6 +32,7 @@ type Operacion struct {
 	Ticker      string    `json:"ticker" db:"ticker"`
 	Cantidad    float64   `json:"cantidad" db:"cantidad"`
 	PrecioARS   float64   `json:"precio_ars" db:"precio_ars"`
+	ComisionARS float64   `json:"comision_ars" db:"comision_ars"`
 	TotalARS    float64   `json:"total_ars" db:"total_ars"`
 	EsCedear    bool      `json:"es_cedear" db:"es_cedear"`
 	Broker      string    `json:"broker" db:"broker"`
@@ -51,17 +56,19 @@ type CompraRequest struct {
 	Ticker      string  `json:"ticker" binding:"required"`
 	Cantidad    float64 `json:"cantidad" binding:"required,gt=0"`
 	PrecioARS   float64 `json:"precio_ars" binding:"required,gt=0"`
+	ComisionARS float64 `json:"comision_ars"`
 	EsCedear    bool    `json:"es_cedear"`
 	Broker      string  `json:"broker" binding:"required"`
 	Notas       string  `json:"notas"`
 }
 
 type VentaRequest struct {
-	Ticker    string  `json:"ticker" binding:"required"`
-	Cantidad  float64 `json:"cantidad" binding:"required,gt=0"`
-	PrecioARS float64 `json:"precio_ars" binding:"required,gt=0"`
-	Broker    string  `json:"broker" binding:"required"`
-	Notas     string  `json:"notas"`
+	Ticker      string  `json:"ticker" binding:"required"`
+	Cantidad    float64 `json:"cantidad" binding:"required,gt=0"`
+	PrecioARS   float64 `json:"precio_ars" binding:"required,gt=0"`
+	ComisionARS float64 `json:"comision_ars"`
+	Broker      string  `json:"broker" binding:"required"`
+	Notas       string  `json:"notas"`
 }
 
 // CotizacionResponse es lo que devuelve GET /api/cotizacion/:ticker
@@ -70,4 +77,44 @@ type CotizacionResponse struct {
 	PrecioUSD float64 `json:"precio_usd"`
 	PrecioARS float64 `json:"precio_ars"`
 	DolarCCL float64 `json:"dolar_ccl"`
+}
+
+// RendimientoPosicion compara el retorno nominal vs el retorno real (ajustado
+// por inflación) de una posición individual.
+type RendimientoPosicion struct {
+	Ticker              string  `json:"ticker"`
+	InvertidoARS        float64 `json:"invertido_ars"`
+	ValorActualARS      float64 `json:"valor_actual_ars"`
+	InflacionArsPct     float64 `json:"inflacion_ars_pct"`
+	RetornoNominalARS   float64 `json:"retorno_nominal_ars"`
+	RetornoNominalPct   float64 `json:"retorno_nominal_pct"`
+	RetornoRealARS      float64 `json:"retorno_real_ars"`
+	RetornoRealPct      float64 `json:"retorno_real_pct"`
+
+	// Campos en USD: null si la posición no tiene CCL de apertura registrado
+	// (posiciones creadas antes de la Fase 2).
+	InvertidoUSD      *float64 `json:"invertido_usd,omitempty"`
+	ValorActualUSD    *float64 `json:"valor_actual_usd,omitempty"`
+	InflacionUsaPct   *float64 `json:"inflacion_usa_pct,omitempty"`
+	RetornoRealUSD    *float64 `json:"retorno_real_usd,omitempty"`
+	RetornoRealUSDPct *float64 `json:"retorno_real_usd_pct,omitempty"`
+}
+
+// RendimientoReal es el payload completo de GET /api/rendimiento/real
+type RendimientoReal struct {
+	Posiciones []RendimientoPosicion `json:"posiciones"`
+
+	TotalInvertidoARS      float64 `json:"total_invertido_ars"`
+	TotalActualARS         float64 `json:"total_actual_ars"`
+	TotalInflacionArsPct   float64 `json:"total_inflacion_ars_pct"`
+	TotalRetornoNominalARS float64 `json:"total_retorno_nominal_ars"`
+	TotalRetornoNominalPct float64 `json:"total_retorno_nominal_pct"`
+	TotalRetornoRealARS    float64 `json:"total_retorno_real_ars"`
+	TotalRetornoRealPct    float64 `json:"total_retorno_real_pct"`
+
+	// Fecha (mes) del dato de inflación más reciente usado en el cálculo.
+	IpcFechaActual string `json:"ipc_fecha_actual"`
+
+	// Resumen en lenguaje natural: "Ganaste X% nominal pero Y% real"
+	Resumen string `json:"resumen"`
 }

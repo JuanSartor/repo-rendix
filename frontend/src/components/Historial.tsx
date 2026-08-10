@@ -71,6 +71,7 @@ export default function Historial() {
                 <th className="px-4 py-3 text-left">Ticker</th>
                 <th className="px-4 py-3 text-right">Cantidad</th>
                 <th className="px-4 py-3 text-right">Precio ARS</th>
+                <th className="px-4 py-3 text-right">Comisión</th>
                 <th className="px-4 py-3 text-right">Total ARS</th>
                 <th className="px-4 py-3 text-center">Broker</th>
                 <th className="px-4 py-3 text-left">Notas</th>
@@ -103,6 +104,9 @@ export default function Historial() {
                   </td>
                   <td className="px-4 py-3 text-right font-mono text-gray-300">
                     {op.precio_ars.toLocaleString('es-AR', { maximumFractionDigits: 2 })}
+                  </td>
+                  <td className="px-4 py-3 text-right font-mono text-gray-500 text-xs">
+                    {op.comision_ars > 0 ? op.comision_ars.toLocaleString('es-AR', { maximumFractionDigits: 0 }) : '—'}
                   </td>
                   <td className="px-4 py-3 text-right font-mono text-white font-medium">
                     {op.total_ars.toLocaleString('es-AR', { maximumFractionDigits: 0 })}

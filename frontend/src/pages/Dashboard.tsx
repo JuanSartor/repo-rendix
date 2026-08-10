@@ -5,8 +5,9 @@ import TarjetaResumen from '../components/TarjetaResumen'
 import TablaCartera from '../components/TablaCartera'
 import ModalOperacion from '../components/ModalOperacion'
 import Historial from '../components/Historial'
+import RetornoReal from '../components/RetornoReal'
 
-type Vista = 'cartera' | 'historial'
+type Vista = 'cartera' | 'retorno-real' | 'historial'
 
 export default function Dashboard() {
   const [cartera, setCartera] = useState<ResumenCartera | null>(null)
@@ -73,7 +74,7 @@ export default function Dashboard() {
 
       {/* Nav tabs */}
       <nav className="border-b border-gray-800 px-6 flex gap-6">
-        {(['cartera', 'historial'] as Vista[]).map((v) => (
+        {(['cartera', 'retorno-real', 'historial'] as Vista[]).map((v) => (
           <button
             key={v}
             onClick={() => setVista(v)}
@@ -83,7 +84,7 @@ export default function Dashboard() {
                 : 'border-transparent text-gray-400 hover:text-white'
             }`}
           >
-            {v === 'cartera' ? '💼 Cartera' : '📋 Historial'}
+            {v === 'cartera' ? '💼 Cartera' : v === 'retorno-real' ? '📈 Retorno Real' : '📋 Historial'}
           </button>
         ))}
       </nav>
@@ -135,6 +136,10 @@ export default function Dashboard() {
             {/* Tabla */}
             <TablaCartera posiciones={cartera.posiciones} />
           </>
+        )}
+
+        {!loading && !error && vista === 'retorno-real' && (
+          <RetornoReal />
         )}
 
         {!loading && vista === 'historial' && (

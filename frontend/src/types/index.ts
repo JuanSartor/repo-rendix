@@ -28,6 +28,7 @@ export interface Operacion {
   ticker: string
   cantidad: number
   precio_ars: number
+  comision_ars: number
   total_ars: number
   es_cedear: boolean
   broker: string
@@ -39,6 +40,7 @@ export interface CompraRequest {
   ticker: string
   cantidad: number
   precio_ars: number
+  comision_ars?: number
   es_cedear: boolean
   broker: string
   notas?: string
@@ -48,8 +50,38 @@ export interface VentaRequest {
   ticker: string
   cantidad: number
   precio_ars: number
+  comision_ars?: number
   broker: string
   notas?: string
+}
+
+export interface RendimientoPosicion {
+  ticker: string
+  invertido_ars: number
+  valor_actual_ars: number
+  inflacion_ars_pct: number
+  retorno_nominal_ars: number
+  retorno_nominal_pct: number
+  retorno_real_ars: number
+  retorno_real_pct: number
+  invertido_usd?: number
+  valor_actual_usd?: number
+  inflacion_usa_pct?: number
+  retorno_real_usd?: number
+  retorno_real_usd_pct?: number
+}
+
+export interface RendimientoReal {
+  posiciones: RendimientoPosicion[]
+  total_invertido_ars: number
+  total_actual_ars: number
+  total_inflacion_ars_pct: number
+  total_retorno_nominal_ars: number
+  total_retorno_nominal_pct: number
+  total_retorno_real_ars: number
+  total_retorno_real_pct: number
+  ipc_fecha_actual: string
+  resumen: string
 }
 
 export interface Cotizacion {

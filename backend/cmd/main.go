@@ -44,6 +44,7 @@ func main() {
 		api.POST("/venta",           handlers.PostVenta)
 		api.GET("/historial",        handlers.GetHistorial)
 		api.GET("/cotizacion/:ticker", handlers.GetCotizacion)
+		api.GET("/rendimiento/real", handlers.GetRendimientoReal)
 	}
 
 	port := os.Getenv("PORT")
