@@ -1,4 +1,4 @@
-import { CompraRequest, Cotizacion, Operacion, ResumenCartera, VentaRequest } from '../types'
+import { CompraRequest, Cotizacion, Operacion, RendimientoReal, ResumenCartera, VentaRequest } from '../types'
 
 const BASE = 'http://localhost:8080/api'
 
@@ -37,4 +37,7 @@ export const api = {
 
   getCotizacion: (ticker: string) =>
     request<Cotizacion>(`/cotizacion/${ticker}`),
+
+  getRendimientoReal: () =>
+    request<RendimientoReal>('/rendimiento/real'),
 }

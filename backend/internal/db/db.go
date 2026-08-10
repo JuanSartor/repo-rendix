@@ -41,7 +41,8 @@ func crearTablas() error {
 		es_cedear       BOOLEAN NOT NULL DEFAULT FALSE,
 		broker          TEXT NOT NULL DEFAULT '',
 		creado_en       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-		actualizado_en  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		actualizado_en  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+		ccl_apertura    DOUBLE PRECISION
 	);
 
 	CREATE TABLE IF NOT EXISTS operaciones (
@@ -54,8 +55,13 @@ func crearTablas() error {
 		es_cedear    BOOLEAN NOT NULL DEFAULT FALSE,
 		broker       TEXT NOT NULL DEFAULT '',
 		notas        TEXT DEFAULT '',
-		fecha_opera  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		fecha_opera  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+		comision_ars DOUBLE PRECISION NOT NULL DEFAULT 0
 	);
+
+	-- Migraciones idempotentes para bases creadas antes de estas columnas.
+	ALTER TABLE posiciones ADD COLUMN IF NOT EXISTS ccl_apertura DOUBLE PRECISION;
+	ALTER TABLE operaciones ADD COLUMN IF NOT EXISTS comision_ars DOUBLE PRECISION NOT NULL DEFAULT 0;
 	`
 	_, err := DB.Exec(schema)
 	if err != nil {
@@ -69,7 +75,7 @@ func crearTablas() error {
 
 func ObtenerPosiciones() ([]models.Posicion, error) {
 	rows, err := DB.Query(`
-		SELECT id, ticker, cantidad, precio_prom_ars, es_cedear, broker, creado_en, actualizado_en
+		SELECT id, ticker, cantidad, precio_prom_ars, es_cedear, broker, creado_en, actualizado_en, ccl_apertura
 		FROM posiciones WHERE cantidad > 0
 		ORDER BY ticker
 	`)
@@ -83,7 +89,7 @@ func ObtenerPosiciones() ([]models.Posicion, error) {
 		var p models.Posicion
 		err := rows.Scan(
 			&p.ID, &p.Ticker, &p.Cantidad, &p.PrecioPromARS,
-			&p.EsCedear, &p.Broker, &p.CreadoEn, &p.ActualizadoEn,
+			&p.EsCedear, &p.Broker, &p.CreadoEn, &p.ActualizadoEn, &p.CCLApertura,
 		)
 		if err != nil {
 			return nil, err
@@ -93,7 +99,11 @@ func ObtenerPosiciones() ([]models.Posicion, error) {
 	return posiciones, nil
 }
 
-func RegistrarCompra(req models.CompraRequest) error {
+// RegistrarCompra registra una compra con precio promedio ponderado (la comisión se
+// prorratea en el costo unitario, así que encarece el precio promedio de la posición).
+// cclActual se guarda como ccl_apertura solo si la posición es nueva; se usa más
+// adelante para calcular el retorno real en USD.
+func RegistrarCompra(req models.CompraRequest, cclActual float64) error {
 	tx, err := DB.Begin()
 	if err != nil {
 		return err
@@ -102,6 +112,7 @@ func RegistrarCompra(req models.CompraRequest) error {
 
 	ticker := req.Ticker
 	now := time.Now()
+	precioEfectivo := req.PrecioARS + req.ComisionARS/req.Cantidad
 
 	// Buscar posición existente
 	var id int
@@ -113,15 +124,15 @@ func RegistrarCompra(req models.CompraRequest) error {
 	if err == sql.ErrNoRows {
 		// Nueva posición
 		_, err = tx.Exec(`
-			INSERT INTO posiciones (ticker, cantidad, precio_prom_ars, es_cedear, broker, creado_en, actualizado_en)
-			VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-			ticker, req.Cantidad, req.PrecioARS,
-			req.EsCedear, req.Broker, now, now,
+			INSERT INTO posiciones (ticker, cantidad, precio_prom_ars, es_cedear, broker, creado_en, actualizado_en, ccl_apertura)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+			ticker, req.Cantidad, precioEfectivo,
+			req.EsCedear, req.Broker, now, now, cclActual,
 		)
 	} else if err == nil {
-		// Actualizar con precio promedio ponderado
+		// Actualizar con precio promedio ponderado (incluye comisión de esta compra)
 		nuevaCant := cantActual + req.Cantidad
-		nuevoProm := ((cantActual * promActual) + (req.Cantidad * req.PrecioARS)) / nuevaCant
+		nuevoProm := ((cantActual * promActual) + (req.Cantidad * precioEfectivo)) / nuevaCant
 		_, err = tx.Exec(`
 			UPDATE posiciones SET cantidad=$1, precio_prom_ars=$2, broker=$3, actualizado_en=$4
 			WHERE id=$5`,
@@ -132,13 +143,13 @@ func RegistrarCompra(req models.CompraRequest) error {
 		return fmt.Errorf("error actualizando posición: %w", err)
 	}
 
-	// Registrar en historial
+	// Registrar en historial (total_ars incluye la comisión: es el costo real desembolsado)
 	_, err = tx.Exec(`
-		INSERT INTO operaciones (tipo, ticker, cantidad, precio_ars, total_ars, es_cedear, broker, notas, fecha_opera)
-		VALUES ('COMPRA', $1, $2, $3, $4, $5, $6, $7, $8)`,
+		INSERT INTO operaciones (tipo, ticker, cantidad, precio_ars, total_ars, es_cedear, broker, notas, fecha_opera, comision_ars)
+		VALUES ('COMPRA', $1, $2, $3, $4, $5, $6, $7, $8, $9)`,
 		ticker, req.Cantidad, req.PrecioARS,
-		req.Cantidad*req.PrecioARS,
-		req.EsCedear, req.Broker, req.Notas, now,
+		req.Cantidad*req.PrecioARS+req.ComisionARS,
+		req.EsCedear, req.Broker, req.Notas, now, req.ComisionARS,
 	)
 	if err != nil {
 		return fmt.Errorf("error registrando operación: %w", err)
@@ -176,12 +187,13 @@ func RegistrarVenta(req models.VentaRequest) error {
 		return err
 	}
 
+	// total_ars neto de comisión: es lo que efectivamente cobrás por la venta
 	_, err = tx.Exec(`
-		INSERT INTO operaciones (tipo, ticker, cantidad, precio_ars, total_ars, es_cedear, broker, notas, fecha_opera)
-		VALUES ('VENTA', $1, $2, $3, $4, FALSE, $5, $6, $7)`,
+		INSERT INTO operaciones (tipo, ticker, cantidad, precio_ars, total_ars, es_cedear, broker, notas, fecha_opera, comision_ars)
+		VALUES ('VENTA', $1, $2, $3, $4, FALSE, $5, $6, $7, $8)`,
 		req.Ticker, req.Cantidad, req.PrecioARS,
-		req.Cantidad*req.PrecioARS,
-		req.Broker, req.Notas, time.Now(),
+		req.Cantidad*req.PrecioARS-req.ComisionARS,
+		req.Broker, req.Notas, time.Now(), req.ComisionARS,
 	)
 	if err != nil {
 		return err
@@ -191,7 +203,7 @@ func RegistrarVenta(req models.VentaRequest) error {
 }
 
 func ObtenerHistorial(ticker string, limit int) ([]models.Operacion, error) {
-	query := `SELECT id, tipo, ticker, cantidad, precio_ars, total_ars, es_cedear, broker, notas, fecha_opera
+	query := `SELECT id, tipo, ticker, cantidad, precio_ars, total_ars, es_cedear, broker, notas, fecha_opera, comision_ars
 		FROM operaciones`
 	args := []interface{}{}
 	argN := 1
@@ -219,7 +231,7 @@ func ObtenerHistorial(ticker string, limit int) ([]models.Operacion, error) {
 		err := rows.Scan(
 			&op.ID, &op.Tipo, &op.Ticker, &op.Cantidad,
 			&op.PrecioARS, &op.TotalARS, &op.EsCedear,
-			&op.Broker, &op.Notas, &op.FechaOpera,
+			&op.Broker, &op.Notas, &op.FechaOpera, &op.ComisionARS,
 		)
 		if err != nil {
 			return nil, err

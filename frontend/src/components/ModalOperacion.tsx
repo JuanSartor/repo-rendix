@@ -13,6 +13,7 @@ export default function ModalOperacion({ tipo, onClose, onSuccess }: Props) {
   const [ticker, setTicker] = useState('')
   const [cantidad, setCantidad] = useState('')
   const [precioARS, setPrecioARS] = useState('')
+  const [comisionARS, setComisionARS] = useState('')
   const [esCedear, setEsCedear] = useState(true)
   const [broker, setBroker] = useState('Cocos')
   const [notas, setNotas] = useState('')
@@ -20,7 +21,9 @@ export default function ModalOperacion({ tipo, onClose, onSuccess }: Props) {
   const [error, setError] = useState('')
 
   const esCompra = tipo === 'compra'
-  const total = (parseFloat(cantidad) || 0) * (parseFloat(precioARS) || 0)
+  const comision = parseFloat(comisionARS) || 0
+  const subtotal = (parseFloat(cantidad) || 0) * (parseFloat(precioARS) || 0)
+  const total = esCompra ? subtotal + comision : subtotal - comision
 
   const handleSubmit = async () => {
     if (!ticker || !cantidad || !precioARS) {
@@ -35,6 +38,7 @@ export default function ModalOperacion({ tipo, onClose, onSuccess }: Props) {
           ticker: ticker.toUpperCase(),
           cantidad: parseFloat(cantidad),
           precio_ars: parseFloat(precioARS),
+          comision_ars: comision,
           es_cedear: esCedear,
           broker,
           notas,
@@ -44,6 +48,7 @@ export default function ModalOperacion({ tipo, onClose, onSuccess }: Props) {
           ticker: ticker.toUpperCase(),
           cantidad: parseFloat(cantidad),
           precio_ars: parseFloat(precioARS),
+          comision_ars: comision,
           broker,
           notas,
         })
@@ -94,21 +99,34 @@ export default function ModalOperacion({ tipo, onClose, onSuccess }: Props) {
             </div>
           </div>
 
-          <div>
-            <label className="text-xs text-gray-400 mb-1 block">Precio ARS por unidad *</label>
-            <input
-              type="number"
-              value={precioARS}
-              onChange={(e) => setPrecioARS(e.target.value)}
-              placeholder="0.00"
-              min="0"
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500 font-mono"
-            />
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs text-gray-400 mb-1 block">Precio ARS por unidad *</label>
+              <input
+                type="number"
+                value={precioARS}
+                onChange={(e) => setPrecioARS(e.target.value)}
+                placeholder="0.00"
+                min="0"
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500 font-mono"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-gray-400 mb-1 block">Comisión ARS (opcional)</label>
+              <input
+                type="number"
+                value={comisionARS}
+                onChange={(e) => setComisionARS(e.target.value)}
+                placeholder="0.00"
+                min="0"
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500 font-mono"
+              />
+            </div>
           </div>
 
           {total > 0 && (
             <div className="bg-gray-800 rounded-lg px-4 py-2 text-sm text-gray-300">
-              Total operación:{' '}
+              {esCompra ? 'Total a pagar (con comisión)' : 'Total a cobrar (neto de comisión)'}:{' '}
               <span className="text-white font-mono font-bold">
                 ARS {total.toLocaleString('es-AR', { maximumFractionDigits: 2 })}
               </span>

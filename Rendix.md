@@ -105,7 +105,7 @@ rendix/
 
 ## Módulos a construir (en orden)
 
-### ✅ Fase 1 — Base (código generado, falta levantar en tu máquina)
+### ✅ Fase 1 — Base (levantada y corriendo contra Supabase real)
 - [x] CRUD compras/ventas con precio promedio ponderado
 - [x] Precios en tiempo real (Yahoo Finance)
 - [x] Dólar CCL automático (criptoya.com)
@@ -114,13 +114,18 @@ rendix/
 - [x] Soporte multi-broker (Cocos / Bull Market)
 - [x] API REST con Gin + CORS
 - [x] Frontend React con dashboard básico
+- Nota: DB es Postgres/Supabase desde el arranque (no SQLite), y el driver es
+  `pgx` puro Go (no CGO), por decisión tomada durante el armado inicial.
 
-### 🔲 Fase 2 — Retorno real (el diferencial más importante)
-- [ ] Integrar API INDEC para inflación mensual ARG
-- [ ] Integrar FRED para inflación USA (CPI)
-- [ ] Calcular rendimiento real vs inflación por posición y total
-- [ ] Reporte mensual: "Ganaste X% nominal pero Y% real"
-- [ ] Incluir comisiones en el cálculo (registrar comisión por operación)
+### ✅ Fase 2 — Retorno real (el diferencial más importante)
+- [x] Integrar API INDEC para inflación mensual ARG (Series de Tiempo, sin API key)
+- [x] Integrar FRED para inflación USA (CPI) — opcional, requiere `FRED_API_KEY` propia
+- [x] Calcular rendimiento real vs inflación por posición y total (tab "Retorno Real")
+- [x] Reporte mensual: "Ganaste X% nominal pero Y% real"
+- [x] Incluir comisiones en el cálculo (registrar comisión por operación)
+- Nota: el retorno real usa la fecha de apertura de la posición (primera compra)
+  como ancla de inflación; el real en USD requiere que la posición tenga
+  `ccl_apertura` (solo posiciones creadas después de esta fase lo tienen).
 
 ### 🔲 Fase 3 — Alertas
 - [ ] Telegram Bot (un bot por usuario)
