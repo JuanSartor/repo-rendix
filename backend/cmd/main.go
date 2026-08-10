@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -30,9 +31,18 @@ func main() {
 	// Router
 	r := gin.Default()
 
-	// CORS: permite requests desde el frontend React (localhost:5173)
+	// CORS: localhost siempre permitido (dev); en producción sumá el/los dominios
+	// reales (frontend + landing) en ALLOWED_ORIGINS separados por coma.
+	origenes := []string{"http://localhost:5173", "http://localhost:3000"}
+	if extra := os.Getenv("ALLOWED_ORIGINS"); extra != "" {
+		for _, o := range strings.Split(extra, ",") {
+			if o = strings.TrimSpace(o); o != "" {
+				origenes = append(origenes, o)
+			}
+		}
+	}
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:5173", "http://localhost:3000"},
+		AllowOrigins:     origenes,
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		AllowCredentials: true,
@@ -52,6 +62,7 @@ func main() {
 		api.POST("/alertas",         handlers.PostAlertas)
 		api.DELETE("/alertas/:id",   handlers.DeleteAlerta)
 		api.POST("/importar-csv",    handlers.PostImportarCSV)
+		api.POST("/waitlist",        handlers.PostWaitlist)
 	}
 
 	iniciarJobsAlertas()

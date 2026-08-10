@@ -153,3 +153,8 @@ type AlertaRequest struct {
 	Direccion      string  `json:"direccion" binding:"required,oneof=ARRIBA ABAJO"`
 	EsCedear       bool    `json:"es_cedear"`
 }
+
+// WaitlistRequest es el body de POST /api/waitlist (landing page pública).
+type WaitlistRequest struct {
+	Email string `json:"email" binding:"required,email"`
+}
