@@ -27,31 +27,33 @@ export default function Historial() {
   return (
     <div>
       {/* Filtro */}
-      <div className="flex gap-3 mb-4">
+      <div className="flex flex-col sm:flex-row gap-3 mb-4">
         <input
           value={filtroTicker}
           onChange={(e) => setFiltroTicker(e.target.value.toUpperCase())}
           placeholder="Filtrar por ticker (AAPL, GGAL...)"
-          className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500 w-64 font-mono"
+          className="bg-white border border-gray-300 text-gray-900 dark:bg-gray-800 dark:border-gray-700 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 w-full sm:w-64 font-mono"
         />
-        <button
-          onClick={handleBuscar}
-          className="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-lg text-sm transition-colors"
-        >
-          Filtrar
-        </button>
-        {filtroTicker && (
+        <div className="flex gap-3">
           <button
-            onClick={() => { setFiltroTicker(''); cargar() }}
-            className="text-gray-400 hover:text-white text-sm"
+            onClick={handleBuscar}
+            className="bg-gray-200 hover:bg-gray-300 text-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-white px-4 py-2 rounded-lg text-sm transition-colors"
           >
-            Limpiar
+            Filtrar
           </button>
-        )}
+          {filtroTicker && (
+            <button
+              onClick={() => { setFiltroTicker(''); cargar() }}
+              className="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white text-sm"
+            >
+              Limpiar
+            </button>
+          )}
+        </div>
       </div>
 
-      {loading && <p className="text-gray-400 text-sm animate-pulse">Cargando historial...</p>}
-      {error && <p className="text-red-400 text-sm">{error}</p>}
+      {loading && <p className="text-gray-500 dark:text-gray-400 text-sm animate-pulse">Cargando historial...</p>}
+      {error && <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>}
 
       {!loading && ops.length === 0 && (
         <div className="text-center py-16 text-gray-500">
@@ -61,10 +63,10 @@ export default function Historial() {
       )}
 
       {!loading && ops.length > 0 && (
-        <div className="overflow-x-auto rounded-xl border border-gray-800">
+        <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-800">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-900 text-gray-400 text-xs uppercase tracking-wide">
+              <tr className="bg-gray-100 text-gray-500 dark:bg-gray-900 dark:text-gray-400 text-xs uppercase tracking-wide">
                 <th className="px-4 py-3 text-left">#</th>
                 <th className="px-4 py-3 text-left">Fecha</th>
                 <th className="px-4 py-3 text-left">Tipo</th>
@@ -77,42 +79,42 @@ export default function Historial() {
                 <th className="px-4 py-3 text-left">Notas</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-800">
+            <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
               {ops.map((op) => (
-                <tr key={op.id} className="bg-gray-950 hover:bg-gray-900 transition-colors">
-                  <td className="px-4 py-3 text-gray-500 font-mono text-xs">{op.id}</td>
-                  <td className="px-4 py-3 text-gray-400 text-xs">
+                <tr key={op.id} className="bg-white hover:bg-gray-50 dark:bg-gray-950 dark:hover:bg-gray-900 transition-colors">
+                  <td className="px-4 py-3 text-gray-400 dark:text-gray-500 font-mono text-xs">{op.id}</td>
+                  <td className="px-4 py-3 text-gray-500 dark:text-gray-400 text-xs">
                     {new Date(op.fecha_opera).toLocaleDateString('es-AR')}
                   </td>
                   <td className="px-4 py-3">
                     <span className={`text-xs font-medium px-2 py-0.5 rounded ${
                       op.tipo === 'COMPRA'
-                        ? 'bg-green-900/40 text-green-400'
-                        : 'bg-red-900/40 text-red-400'
+                        ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400'
+                        : 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400'
                     }`}>
                       {op.tipo}
                     </span>
                   </td>
-                  <td className="px-4 py-3 font-bold text-white font-mono">
+                  <td className="px-4 py-3 font-bold text-gray-900 dark:text-white font-mono">
                     {op.ticker}
                     {op.es_cedear && (
-                      <span className="ml-1 text-xs bg-blue-900 text-blue-300 px-1 py-0.5 rounded">C</span>
+                      <span className="ml-1 text-xs bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 px-1 py-0.5 rounded">C</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-right font-mono text-gray-300">
+                  <td className="px-4 py-3 text-right font-mono text-gray-600 dark:text-gray-300">
                     {op.cantidad.toLocaleString('es-AR', { maximumFractionDigits: 2 })}
                   </td>
-                  <td className="px-4 py-3 text-right font-mono text-gray-300">
+                  <td className="px-4 py-3 text-right font-mono text-gray-600 dark:text-gray-300">
                     {op.precio_ars.toLocaleString('es-AR', { maximumFractionDigits: 2 })}
                   </td>
-                  <td className="px-4 py-3 text-right font-mono text-gray-500 text-xs">
+                  <td className="px-4 py-3 text-right font-mono text-gray-400 dark:text-gray-500 text-xs">
                     {op.comision_ars > 0 ? op.comision_ars.toLocaleString('es-AR', { maximumFractionDigits: 0 }) : '—'}
                   </td>
-                  <td className="px-4 py-3 text-right font-mono text-white font-medium">
+                  <td className="px-4 py-3 text-right font-mono text-gray-900 dark:text-white font-medium">
                     {op.total_ars.toLocaleString('es-AR', { maximumFractionDigits: 0 })}
                   </td>
-                  <td className="px-4 py-3 text-center text-xs text-gray-400">{op.broker}</td>
-                  <td className="px-4 py-3 text-xs text-gray-500 italic">{op.notas}</td>
+                  <td className="px-4 py-3 text-center text-xs text-gray-500 dark:text-gray-400">{op.broker}</td>
+                  <td className="px-4 py-3 text-xs text-gray-400 dark:text-gray-500 italic">{op.notas}</td>
                 </tr>
               ))}
             </tbody>

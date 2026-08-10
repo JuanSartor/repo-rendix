@@ -3,6 +3,7 @@ export interface Posicion {
   ticker: string
   cantidad: number
   precio_prom_ars: number
+  precio_disponible: boolean
   precio_actual_ars: number
   precio_actual_usd: number
   es_cedear: boolean
@@ -20,6 +21,7 @@ export interface ResumenCartera {
   total_pnl_pct: number
   total_usd: number
   dolar_ccl: number
+  posiciones_sin_cotizar?: string[]
 }
 
 export interface Operacion {
@@ -82,6 +84,7 @@ export interface RendimientoReal {
   total_retorno_real_pct: number
   ipc_fecha_actual: string
   resumen: string
+  posiciones_sin_cotizar?: string[]
 }
 
 export interface Cotizacion {
