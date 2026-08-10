@@ -59,6 +59,17 @@ func crearTablas() error {
 		comision_ars DOUBLE PRECISION NOT NULL DEFAULT 0
 	);
 
+	CREATE TABLE IF NOT EXISTS alertas (
+		id              SERIAL PRIMARY KEY,
+		ticker          TEXT NOT NULL,
+		precio_objetivo DOUBLE PRECISION NOT NULL,
+		direccion       TEXT NOT NULL CHECK(direccion IN ('ARRIBA','ABAJO')),
+		es_cedear       BOOLEAN NOT NULL DEFAULT FALSE,
+		activa          BOOLEAN NOT NULL DEFAULT TRUE,
+		creado_en       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+		disparada_en    TIMESTAMPTZ
+	);
+
 	-- Migraciones idempotentes para bases creadas antes de estas columnas.
 	ALTER TABLE posiciones ADD COLUMN IF NOT EXISTS ccl_apertura DOUBLE PRECISION;
 	ALTER TABLE operaciones ADD COLUMN IF NOT EXISTS comision_ars DOUBLE PRECISION NOT NULL DEFAULT 0;
@@ -270,4 +281,72 @@ func ObtenerHistorial(ticker string, limit int) ([]models.Operacion, error) {
 		ops = append(ops, op)
 	}
 	return ops, nil
+}
+
+// ─── Alertas ──────────────────────────────────────────────────────────────────
+
+func CrearAlerta(req models.AlertaRequest) error {
+	_, err := DB.Exec(`
+		INSERT INTO alertas (ticker, precio_objetivo, direccion, es_cedear)
+		VALUES ($1, $2, $3, $4)`,
+		req.Ticker, req.PrecioObjetivo, req.Direccion, req.EsCedear,
+	)
+	if err != nil {
+		return fmt.Errorf("error creando alerta: %w", err)
+	}
+	return nil
+}
+
+func ObtenerAlertas() ([]models.Alerta, error) {
+	return consultarAlertas("SELECT id, ticker, precio_objetivo, direccion, es_cedear, activa, creado_en, disparada_en FROM alertas ORDER BY creado_en DESC")
+}
+
+func ObtenerAlertasActivas() ([]models.Alerta, error) {
+	return consultarAlertas("SELECT id, ticker, precio_objetivo, direccion, es_cedear, activa, creado_en, disparada_en FROM alertas WHERE activa = TRUE ORDER BY creado_en")
+}
+
+func consultarAlertas(query string) ([]models.Alerta, error) {
+	rows, err := DB.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var alertas []models.Alerta
+	for rows.Next() {
+		var a models.Alerta
+		err := rows.Scan(
+			&a.ID, &a.Ticker, &a.PrecioObjetivo, &a.Direccion,
+			&a.EsCedear, &a.Activa, &a.CreadoEn, &a.DisparadaEn,
+		)
+		if err != nil {
+			return nil, err
+		}
+		alertas = append(alertas, a)
+	}
+	return alertas, nil
+}
+
+// MarcarAlertaDisparada desactiva la alerta y registra cuándo se disparó, para
+// no volver a avisar por el mismo cruce de precio en el próximo chequeo.
+func MarcarAlertaDisparada(id int) error {
+	_, err := DB.Exec(
+		`UPDATE alertas SET activa = FALSE, disparada_en = NOW() WHERE id = $1`, id,
+	)
+	return err
+}
+
+func EliminarAlerta(id int) error {
+	res, err := DB.Exec(`DELETE FROM alertas WHERE id = $1`, id)
+	if err != nil {
+		return err
+	}
+	filas, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if filas == 0 {
+		return fmt.Errorf("no existe alerta con id %d", id)
+	}
+	return nil
 }
