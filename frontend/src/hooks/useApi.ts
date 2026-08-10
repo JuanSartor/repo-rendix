@@ -1,4 +1,4 @@
-import { CompraRequest, Cotizacion, Operacion, RendimientoReal, ResumenCartera, VentaRequest } from '../types'
+import { Alerta, AlertaRequest, CompraRequest, Cotizacion, Operacion, RendimientoReal, ResumenCartera, VentaRequest } from '../types'
 
 const BASE = 'http://localhost:8080/api'
 
@@ -40,4 +40,18 @@ export const api = {
 
   getRendimientoReal: () =>
     request<RendimientoReal>('/rendimiento/real'),
+
+  getAlertas: () =>
+    request<Alerta[]>('/alertas'),
+
+  postAlerta: (body: AlertaRequest) =>
+    request<{ message: string }>('/alertas', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  deleteAlerta: (id: number) =>
+    request<{ message: string }>(`/alertas/${id}`, {
+      method: 'DELETE',
+    }),
 }

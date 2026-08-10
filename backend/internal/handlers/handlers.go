@@ -5,81 +5,12 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/gin-gonic/gin"
 	"portfolio-tracker/internal/db"
 	"portfolio-tracker/internal/models"
 	"portfolio-tracker/internal/services"
 )
-
-// totalesCartera son los agregados calculados junto con los precios actuales de cada posición.
-type totalesCartera struct {
-	TotalInvertido float64
-	TotalActual    float64
-	// SinCotizar lista los tickers cuyo precio no se pudo obtener; sus montos no
-	// entran en TotalInvertido/TotalActual porque no sabemos su valor real hoy.
-	SinCotizar []string
-}
-
-// calcularPreciosActuales completa PrecioActualARS/USD, PnlARS/Pct, ValorTotalARS y
-// PrecioDisponible de cada posición (mutando el slice in-place, una goroutine por
-// posición ya que cada fetch a Yahoo tarda 200-500ms) y devuelve los totales agregados.
-// Compartido entre GetCartera y GetRendimientoReal para no duplicar las llamadas.
-//
-// Si el fetch de una posición falla, PrecioDisponible queda en false y esa posición
-// se excluye de los totales — nunca mostramos un P&L de -100% por un error de red.
-func calcularPreciosActuales(posiciones []models.Posicion, ccl float64) totalesCartera {
-	var wg sync.WaitGroup
-	for i := range posiciones {
-		wg.Add(1)
-		go func(p *models.Posicion) {
-			defer wg.Done()
-
-			var precioActualARS float64
-			var err error
-			if p.EsCedear {
-				_, precioActualARS, err = services.ObtenerPrecioARS(p.Ticker, ccl)
-			} else {
-				// Acciones locales: sufijo .BA en Yahoo Finance
-				tickerBA := services.ResolverTickerLocal(p.Ticker)
-				precioActualARS, err = services.ObtenerPrecioUSD(tickerBA + ".BA")
-			}
-			if err != nil || precioActualARS <= 0 {
-				p.PrecioDisponible = false
-				return
-			}
-
-			invertido := p.Cantidad * p.PrecioPromARS
-			actualTotal := p.Cantidad * precioActualARS
-
-			p.PrecioDisponible = true
-			p.PrecioActualARS = precioActualARS
-			p.ValorTotalARS = actualTotal
-			p.PnlARS = actualTotal - invertido
-			if invertido > 0 {
-				p.PnlPct = (p.PnlARS / invertido) * 100
-			}
-			if ccl > 0 {
-				p.PrecioActualUSD = precioActualARS / ccl
-			}
-		}(&posiciones[i])
-	}
-	wg.Wait()
-
-	var totales totalesCartera
-	for i := range posiciones {
-		p := &posiciones[i]
-		if !p.PrecioDisponible {
-			totales.SinCotizar = append(totales.SinCotizar, p.Ticker)
-			continue
-		}
-		totales.TotalInvertido += p.Cantidad * p.PrecioPromARS
-		totales.TotalActual += p.ValorTotalARS
-	}
-
-	return totales
-}
 
 // GET /api/cartera
 // Devuelve todas las posiciones con precios actualizados y P&L calculado
@@ -99,7 +30,7 @@ func GetCartera(c *gin.Context) {
 		ccl = 0
 	}
 
-	totales := calcularPreciosActuales(posiciones, ccl)
+	totales := services.CalcularPreciosActuales(posiciones, ccl)
 
 	totalPnl := totales.TotalActual - totales.TotalInvertido
 	totalPct := 0.0
@@ -137,7 +68,7 @@ func GetRendimientoReal(c *gin.Context) {
 	}
 
 	ccl, _ := services.ObtenerDolarCCL()
-	totalesPrecios := calcularPreciosActuales(posiciones, ccl)
+	totalesPrecios := services.CalcularPreciosActuales(posiciones, ccl)
 
 	serieIPC, err := services.ObtenerIPCArgentina()
 	if err != nil {
@@ -341,4 +272,47 @@ func GetCotizacion(c *gin.Context) {
 // GET /api/health
 func Health(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
+// GET /api/alertas
+func GetAlertas(c *gin.Context) {
+	alertas, err := db.ObtenerAlertas()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if alertas == nil {
+		alertas = []models.Alerta{}
+	}
+	c.JSON(http.StatusOK, alertas)
+}
+
+// POST /api/alertas
+func PostAlertas(c *gin.Context) {
+	var req models.AlertaRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	req.Ticker = strings.ToUpper(req.Ticker)
+
+	if err := db.CrearAlerta(req); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"message": "Alerta creada correctamente"})
+}
+
+// DELETE /api/alertas/:id
+func DeleteAlerta(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "id inválido"})
+		return
+	}
+	if err := db.EliminarAlerta(id); err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Alerta eliminada"})
 }

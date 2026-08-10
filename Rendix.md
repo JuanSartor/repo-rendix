@@ -127,12 +127,12 @@ rendix/
   como ancla de inflación; el real en USD requiere que la posición tenga
   `ccl_apertura` (solo posiciones creadas después de esta fase lo tienen).
 
-### 🔲 Fase 3 — Alertas
-- [ ] Telegram Bot (un bot por usuario)
-- [ ] Alerta cuando activo llega a precio objetivo
-- [ ] Alerta cuando cae más del X% en un día
-- [ ] Alerta de earnings próximos (Finnhub)
-- [ ] Resumen diario automático por Telegram
+### ✅ Fase 3 — Alertas (reducida, según recomendación de la auditoría)
+- [x] Telegram Bot (single-user por ahora vía TELEGRAM_CHAT_ID; "un bot por usuario" real llega con Fase 5/multi-usuario)
+- [x] Alerta cuando activo llega a precio objetivo (tab "Alertas": crear, listar, cancelar)
+- [x] Resumen diario automático por Telegram (hora configurable, RESUMEN_HORA)
+- [ ] Alerta cuando cae más del X% en un día — pasa a Fase 3.5
+- [ ] Alerta de earnings próximos (Finnhub) — pasa a Fase 3.5
 
 ### 🔲 Fase 4 — Calendario de eventos
 - [ ] Feriados bursátiles Argentina y NYSE

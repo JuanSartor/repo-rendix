@@ -93,3 +93,21 @@ export interface Cotizacion {
   precio_ars: number
   dolar_ccl: number
 }
+
+export interface Alerta {
+  id: number
+  ticker: string
+  precio_objetivo: number
+  direccion: 'ARRIBA' | 'ABAJO'
+  es_cedear: boolean
+  activa: boolean
+  creado_en: string
+  disparada_en?: string
+}
+
+export interface AlertaRequest {
+  ticker: string
+  precio_objetivo: number
+  direccion: 'ARRIBA' | 'ABAJO'
+  es_cedear: boolean
+}

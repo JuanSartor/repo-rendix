@@ -129,3 +129,23 @@ type RendimientoReal struct {
 	// precio actual disponible en este request.
 	PosicionesSinCotizar []string `json:"posiciones_sin_cotizar,omitempty"`
 }
+
+// Alerta es una alerta de precio objetivo que dispara un mensaje de Telegram
+// la primera vez que el precio del ticker cruza el objetivo en la dirección indicada.
+type Alerta struct {
+	ID             int        `json:"id" db:"id"`
+	Ticker         string     `json:"ticker" db:"ticker"`
+	PrecioObjetivo float64    `json:"precio_objetivo" db:"precio_objetivo"`
+	Direccion      string     `json:"direccion" db:"direccion"` // ARRIBA | ABAJO
+	EsCedear       bool       `json:"es_cedear" db:"es_cedear"`
+	Activa         bool       `json:"activa" db:"activa"`
+	CreadoEn       time.Time  `json:"creado_en" db:"creado_en"`
+	DisparadaEn    *time.Time `json:"disparada_en,omitempty" db:"disparada_en"`
+}
+
+type AlertaRequest struct {
+	Ticker         string  `json:"ticker" binding:"required"`
+	PrecioObjetivo float64 `json:"precio_objetivo" binding:"required,gt=0"`
+	Direccion      string  `json:"direccion" binding:"required,oneof=ARRIBA ABAJO"`
+	EsCedear       bool    `json:"es_cedear"`
+}
