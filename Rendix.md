@@ -286,21 +286,12 @@ Cada dato externo tiene una sola fuente. Sugerencia de fallbacks en orden:
 - **IPC:** API Series de Tiempo → CSV directo de INDEC (`indec.gob.ar/ftp/cuadros/economia/serie_ipc_divisiones.csv`) → último cacheado.
 - Persistir el último valor bueno de cada fuente en la DB para sobrevivir reinicios (el cache actual es solo memoria).
 
-## 2. Testing (hoy: cero tests)
+## 2. Testing ✅ (hecho 2026-08-10)
 
-El proyecto no tiene ni un test. Antes de Fase 3 (alertas que disparan mensajes reales) conviene tener al menos la capa de cálculo cubierta, porque es donde un bug es plata mal informada.
-
-### Backend (Go, en orden de valor)
-1. **Unit tests de cálculo puro** — lo más urgente y lo más fácil:
-   - Precio promedio ponderado con compras sucesivas y comisiones (`RegistrarCompra`): casos con comisión 0, comisión alta, compra que promedia hacia arriba/abajo.
-   - `BuscarIndiceEnFecha`: fecha exacta, fecha entre meses, fecha anterior al inicio de la serie, serie vacía.
-   - Retorno real: cartera sintética con inflación conocida (índice 100→200 = 100% inflación) y verificar nominal vs real a mano.
-   - Venta que excede posición, venta exacta, ticker inexistente.
-2. **Tests de handlers con `httptest`** + interfaces para mockear `services` (hoy los handlers llaman funciones concretas del paquete; extraer una interfaz `MarketData` y otra `InflacionData` las hace mockeables e inyectables).
-3. **DB tests** contra Postgres real en CI (contenedor `postgres:16` en GitHub Actions) — el protocolo simple de PgBouncer ya está encapsulado en `Init`, así que los tests corren contra Postgres pelado sin tocar nada.
-
-### Frontend
-- **Vitest + React Testing Library:** ModalOperacion (validación de campos, cálculo del total con comisión en compra vs venta), TablaCartera (posición sin precio no muestra -100%), formateo es-AR.
+- **Backend:** `internal/services/inflation_test.go` y `market_test.go` (unit tests puros: `BuscarIndiceEnFecha` en sus bordes, `ResolverTickerLocal`). `internal/db/db_test.go` (tests de integración contra Postgres real, no mockeada: promedio ponderado con comisiones en compras sucesivas, `ccl_apertura` seteado/no-seteado según si la compra es retroactiva, venta que excede posición / ticker inexistente / venta válida, orden cronológico de `ObtenerComprasPorTicker`). Corren local contra un Postgres en Docker (`docker run -p 5433:5432 postgres:16`, `DATABASE_URL_TEST`) y en CI contra un contenedor de servicio efímero.
+- **Frontend:** Vitest + React Testing Library. `ModalOperacion.test.tsx` cubre el cálculo del total (compra suma comisión, venta la resta), la validación de campos requeridos, y que el payload mande `fecha_opera`/ticker normalizado. `TablaCartera.test.tsx` cubre específicamente el bug de -100% falso: una posición con `precio_disponible=false` muestra "sin cotización", no un P&L inventado.
+- **CI:** `.github/workflows/ci.yml`, dos jobs (`backend` con Postgres de servicio, `frontend`), corren en cada push/PR a `main`.
+- Pendiente (no bloqueante, para más adelante): tests de handlers con `httptest` + interfaces mockeables para `services` (hoy los handlers llaman funciones concretas del paquete); tests de `GetRendimientoReal` con una serie de inflación sintética.
 - **Playwright e2e** (ya quedó instalado en esta máquina): flujo compra → aparece en cartera → aparece en historial → retorno real la incluye. Correrlo contra un backend con DB de test.
 
 ### CI (GitHub Actions, gratis en repo público/privado chico)
